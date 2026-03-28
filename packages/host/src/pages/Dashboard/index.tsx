@@ -10,8 +10,51 @@
  *     → Dashboard re-renders with live data
  *
  * Status transitions: idle → loading → succeeded | failed
+ *
+ * ── Step 6: useMemo + useCallback + React.memo ────────────────────────────
+ *
+ * THREE QUESTIONS to ask before memoizing:
+ *
+ *   1. Is the computation actually expensive?
+ *      Rule of thumb: if it loops over data or calls sort/filter/map on
+ *      an array > 100 items, memoize it.  A .toFixed() call? Don't bother.
+ *
+ *   2. Does the parent re-render more than the data changes?
+ *      If the parent re-renders every 100ms (e.g. from a scroll event)
+ *      but the data changes every 10s, memoization saves ~99% of work.
+ *
+ *   3. Do you pass callbacks to memoized children?
+ *      React.memo is useless if you pass a new function reference every
+ *      render. useCallback stabilizes the ref so the child's memo check
+ *      actually passes.
+ *
+ * COMMON MISTAKES:
+ *
+ *   ✗ Memoizing everything "just in case"
+ *     memo() and useMemo both have a cost: the comparison itself.
+ *     For trivial values (string, boolean, a 3-element array of numbers),
+ *     the comparison costs MORE than re-computing.
+ *
+ *   ✗ Missing dependencies in useMemo/useCallback
+ *     Stale closures. The exhaustive-deps ESLint rule catches this —
+ *     never disable it.
+ *
+ *   ✗ Memoizing an object created inside useMemo
+ *     useMemo(() => ({ x: a, y: b }), [a, b]) is fine.
+ *     useMemo(() => ({ x: a, y: b }), []) is a stale closure bug.
+ *
+ *   ✗ React.memo without useCallback on handlers
+ *     // Parent:
+ *     const handler = () => doSomething();   // new ref every render
+ *     <MemoizedChild onClick={handler} />    // memo is bypassed every render
+ *
+ * HOW TO MEASURE:
+ *   React DevTools Profiler → record → interact → flame chart.
+ *   Gray bars = skipped renders. Colored bars = actual renders.
+ *   Before: all stat cards re-render on every dispatch.
+ *   After:  only the changed card re-renders.
  */
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import {
   selectFormattedStats,
@@ -32,7 +75,27 @@ interface StatCardProps {
   change: number;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, change }) => {
+/**
+ * StatCard wrapped with React.memo.
+ *
+ * BEFORE (plain function component):
+ *   const StatCard: React.FC<StatCardProps> = ({ label, value, change }) => ...
+ *
+ *   Problem: every time the Dashboard re-renders (e.g. from "Simulate Live
+ *   Update" dispatching to Redux), ALL four stat cards re-render even if
+ *   three of them received identical props.
+ *
+ * AFTER (React.memo with default shallow comparison):
+ *   Memo does a shallow === comparison on each prop.
+ *   - label: string  → === check
+ *   - value: string  → === check
+ *   - change: number → === check
+ *   All primitives → default memo is perfect here. No custom comparator needed.
+ *
+ * Result: when updateStats({ revenue }) fires, only the Revenue card
+ * re-renders. The other three (Users, Sessions, Bounce Rate) are skipped.
+ */
+const StatCard = React.memo<StatCardProps>(function StatCard({ label, value, change }) {
   const isPositive = change >= 0;
   return (
     <div className="stat-card">
@@ -44,7 +107,7 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, change }) => {
       </span>
     </div>
   );
-};
+});
 
 /** Skeleton card shown while status === 'loading' */
 const StatCardSkeleton: React.FC = () => (
@@ -86,8 +149,25 @@ const Dashboard: React.FC = () => {
   const isLoading = status === 'loading';
   const isFailed  = status === 'failed';
 
-  /** Simulate a live stat update — replaced by WebSocket in Step 7 */
-  const handleSimulateUpdate = () => {
+  /**
+   * useCallback — stabilizes the function reference across re-renders.
+   *
+   * BEFORE:
+   *   const handleSimulateUpdate = () => { dispatch(...); };
+   *   // New function object created on every Dashboard render.
+   *   // If this were passed to a React.memo child, memo would always fail.
+   *
+   * AFTER:
+   *   useCallback(() => { ... }, [dispatch]);
+   *   // Same function reference as long as `dispatch` doesn't change.
+   *   // Redux dispatch is guaranteed stable — so this callback is
+   *   // effectively created once for the lifetime of the component.
+   *
+   * NOTE: dispatch IS stable (Redux guarantees it). The [dispatch]
+   * dependency is listed to satisfy exhaustive-deps — not because it
+   * will ever change.
+   */
+  const handleSimulateUpdate = useCallback(() => {
     dispatch(updateStats({ revenue: Math.floor(48_000 + Math.random() * 5_000) }));
     dispatch(addActivity({
       id:        `evt_${Date.now()}`,
@@ -96,7 +176,49 @@ const Dashboard: React.FC = () => {
       type:      'payment',
       timestamp: Date.now(),
     }));
-  };
+  }, [dispatch]);
+
+  /**
+   * useCallback for retry — same principle.
+   * Without this, passing onRetry to ErrorBanner creates a new fn each render.
+   * ErrorBanner is not memoized here, but the pattern is correct for when it is.
+   */
+  const handleRetry = useCallback(() => {
+    dispatch(fetchDashboardData());
+  }, [dispatch]);
+
+  /**
+   * useMemo — derive the chart bar heights from live stat data.
+   *
+   * BEFORE:
+   *   Hardcoded: [40, 65, 50, 80, 60, 90, 75, 85, 70, 95, 80, 100]
+   *   Static array literal — re-created on every render as a new reference,
+   *   even though the values never change.
+   *
+   * AFTER:
+   *   useMemo derives bar heights from the revenue change value.
+   *   The array reference is stable between renders unless formattedStats
+   *   changes. If this array were passed to a charting component wrapped
+   *   with React.memo, the memo check would correctly skip re-renders.
+   *
+   * WHY this specific computation is a good useMemo candidate:
+   *   - It reads from formattedStats (derived from Redux state)
+   *   - It produces an array (new reference on every call without memo)
+   *   - The result feeds a visual element that doesn't need to recompute
+   *     just because, say, recentActivity changed
+   */
+  const chartBarHeights = useMemo(() => {
+    if (formattedStats.length === 0) {
+      return [40, 65, 50, 80, 60, 90, 75, 85, 70, 95, 80, 100];
+    }
+    // Use the revenue stat's change percentage to shift the sparkline baseline
+    const revenueStat = formattedStats.find(s => s.key === 'revenue');
+    const bias        = revenueStat ? Math.min(30, Math.max(-30, revenueStat.change)) : 0;
+    const base        = 50 + bias;
+    return Array.from({ length: 12 }, (_, i) =>
+      Math.round(Math.min(100, Math.max(15, base + Math.sin(i * 0.7) * 28 + i * 2)))
+    );
+  }, [formattedStats]);
 
   return (
     <div className="page">
@@ -130,7 +252,7 @@ const Dashboard: React.FC = () => {
       {isFailed && error !== null && (
         <ErrorBanner
           message={error}
-          onRetry={() => dispatch(fetchDashboardData())}
+          onRetry={handleRetry}
         />
       )}
 
@@ -183,20 +305,20 @@ const Dashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Chart placeholder — replaced in Step 5 */}
+        {/* Revenue sparkline — bar heights derived from live stat data via useMemo */}
         <div className="card">
           <div className="card__header">
             <h2 className="card__title">Revenue Over Time</h2>
-            <span className="badge badge--purple">Step 5</span>
+            <span className="badge badge--purple">Live Sparkline</span>
           </div>
           <div className="chart-placeholder">
             <div className="chart-placeholder__bars" aria-hidden="true">
-              {[40, 65, 50, 80, 60, 90, 75, 85, 70, 95, 80, 100].map((h, i) => (
+              {chartBarHeights.map((h, i) => (
                 <div key={i} className="chart-placeholder__bar" style={{ height: `${h}%` }} />
               ))}
             </div>
             <p className="chart-placeholder__label">
-              Real chart added in Step 5 — Data Grid &amp; Visualization
+              Bar heights reflect live revenue data — try "Simulate Live Update"
             </p>
           </div>
         </div>
