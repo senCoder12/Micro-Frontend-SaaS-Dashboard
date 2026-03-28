@@ -993,6 +993,58 @@
 }
 
 /* ============================================================
+   Skeleton loading states (Step 4: API loading)
+   ============================================================ */
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+.skeleton {
+  display: block;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-2) 25%,
+    var(--color-surface-3) 50%,
+    var(--color-surface-2) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton--label        { height: 10px; width: 60%;  margin-bottom: var(--space-3); }
+.skeleton--value        { height: 28px; width: 80%;  margin-bottom: var(--space-2); }
+.skeleton--change       { height: 10px; width: 50%; }
+.skeleton--dot          { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.skeleton--activity-text{ height: 12px; flex: 1; }
+.skeleton--time         { height: 12px; width: 48px; flex-shrink: 0; }
+
+.stat-card--skeleton {
+  pointer-events: none;
+}
+
+/* ============================================================
+   Error banner (Step 4: API error states)
+   ============================================================ */
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background-color: var(--color-danger-muted);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+}
+
+.error-banner__icon    { color: var(--color-danger); font-size: var(--text-base); }
+.error-banner__message { flex: 1; color: var(--color-text-muted); }
+.error-banner__retry   { flex-shrink: 0; }
+
+/* ============================================================
    Not Found page
    ============================================================ */
 

@@ -20,6 +20,12 @@ const config: Configuration & { devServer?: DevServerConfiguration } = {
     extensions: ['.tsx', '.ts', '.js', '.jsx'],
     alias: {
       '@': path.resolve(__dirname, 'src'),
+      /**
+       * Force all axios imports to resolve to the single root-level copy.
+       * Without this, npm workspaces may resolve axios-mock-adapter's own
+       * axios peer differently, giving Webpack two type-incompatible instances.
+       */
+      'axios': path.resolve(__dirname, '../../node_modules/axios'),
     },
   },
 
@@ -27,7 +33,23 @@ const config: Configuration & { devServer?: DevServerConfiguration } = {
     rules: [
       {
         test: /\.tsx?$/,
-        use: 'ts-loader',
+        use: {
+          loader: 'ts-loader',
+          options: {
+            /**
+             * transpileOnly: true — ts-loader skips type checking during bundling.
+             * Type safety is enforced by the separate `npm run type-check` (tsc --noEmit).
+             *
+             * WHY this split (standard industry pattern, used by Next.js / CRA):
+             *   - Webpack's job is BUNDLING, not type checking
+             *   - ts-loader's full type checker can produce false positives with
+             *     circular module type contexts in monorepos (the axios duplicate error)
+             *   - `tsc --noEmit` has full project context and is the authoritative checker
+             *   - Result: faster builds + no spurious bundle-time type errors
+             */
+            transpileOnly: true,
+          },
+        },
         exclude: /node_modules/,
       },
       {
