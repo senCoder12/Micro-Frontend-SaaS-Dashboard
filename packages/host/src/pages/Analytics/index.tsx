@@ -1,33 +1,119 @@
 /**
- * Analytics Page
+ * Analytics Page — powered by the virtual DataGrid.
  *
- * Currently: structured placeholder with date range controls and metric cards.
- * Step 5 → real data grid with sorting/filtering.
- * Step 7 → live metric updates via WebSocket.
+ * Demonstrates:
+ *   - 1,000 row dataset rendered with ~15 DOM nodes via virtual scroll
+ *   - Multi-column sort (click header)
+ *   - Global search + per-column filter (Country, Browser)
+ *   - Inline editing (User name column)
+ *   - Column types: text, badge, currency, duration, date
  */
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { DataGrid } from '@/components/DataGrid';
+import type { ColumnDef } from '@/components/DataGrid';
+import { SESSION_DATA } from '@/services/mock/data/sessions.mock';
+import type { SessionRecord } from '@/services/mock/data/sessions.mock';
+
+// ── Column definitions ─────────────────────────────────────────────────────
+
+const COLUMNS: ColumnDef<SessionRecord>[] = [
+  {
+    key:      'id',
+    header:   'Session ID',
+    width:    110,
+    sortable: true,
+    type:     'text',
+  },
+  {
+    key:        'user',
+    header:     'User',
+    minWidth:   140,
+    sortable:   true,
+    filterable: true,
+    editable:   true,   // ← click to edit
+    type:       'text',
+  },
+  {
+    key:        'country',
+    header:     'Country',
+    width:      160,
+    sortable:   true,
+    filterable: true,
+    type:       'badge',
+  },
+  {
+    key:      'browser',
+    header:   'Browser',
+    width:    110,
+    sortable: true,
+    filterable: true,
+    type:     'badge',
+  },
+  {
+    key:      'page',
+    header:   'Landing Page',
+    width:    150,
+    sortable: true,
+    type:     'text',
+    renderCell: (value) => (
+      <code style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize:   'var(--text-xs)',
+        color:      'var(--color-primary)',
+      }}>
+        {String(value)}
+      </code>
+    ),
+  },
+  {
+    key:      'duration',
+    header:   'Duration',
+    width:    100,
+    sortable: true,
+    type:     'duration',
+  },
+  {
+    key:      'revenue',
+    header:   'Revenue',
+    width:    100,
+    sortable: true,
+    type:     'currency',
+    renderCell: (value) => {
+      const amount = Number(value);
+      if (amount === 0) return <span style={{ color: 'var(--color-text-faint)' }}>—</span>;
+      return (
+        <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+          {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(amount)}
+        </span>
+      );
+    },
+  },
+  {
+    key:      'date',
+    header:   'Date',
+    width:    120,
+    sortable: true,
+    type:     'date',
+  },
+];
+
+// ── Page ───────────────────────────────────────────────────────────────────
 
 type DateRange = '7d' | '30d' | '90d' | '1y';
-
-interface MetricRow {
-  page: string;
-  views: string;
-  uniqueVisitors: string;
-  bounceRate: string;
-  avgTime: string;
-}
-
-const METRICS: MetricRow[] = [
-  { page: '/dashboard',  views: '24,521', uniqueVisitors: '18,320', bounceRate: '22%', avgTime: '4m 12s' },
-  { page: '/analytics',  views: '12,804', uniqueVisitors: '9,441',  bounceRate: '31%', avgTime: '3m 05s' },
-  { page: '/workflow',   views: '8,932',  uniqueVisitors: '6,122',  bounceRate: '18%', avgTime: '6m 48s' },
-  { page: '/settings',   views: '4,201',  uniqueVisitors: '3,880',  bounceRate: '45%', avgTime: '1m 22s' },
-  { page: '/onboarding', views: '2,930',  uniqueVisitors: '2,930',  bounceRate: '9%',  avgTime: '8m 14s' },
-];
 
 const Analytics: React.FC = () => {
   const [activeRange, setActiveRange] = useState<DateRange>('30d');
   const ranges: DateRange[] = ['7d', '30d', '90d', '1y'];
+
+  /**
+   * Inline edit handler.
+   * In a real app this would dispatch to Redux + call an API.
+   * Here we just log to show the callback works.
+   */
+  const handleRowUpdate = useCallback((updatedRow: SessionRecord, index: number) => {
+    console.info('[Analytics] Row updated at index', index, updatedRow);
+    // Step 4: dispatch(updateSession(updatedRow))
+  }, []);
 
   return (
     <div className="page">
@@ -35,10 +121,10 @@ const Analytics: React.FC = () => {
       <div className="page-header">
         <div>
           <h1 className="page-title">Analytics</h1>
-          <p className="page-subtitle">Understand how users interact with your product.</p>
+          <p className="page-subtitle">
+            {SESSION_DATA.length.toLocaleString()} user sessions — scroll, sort, filter, and edit.
+          </p>
         </div>
-
-        {/* Date range selector */}
         <div className="btn-group" role="group" aria-label="Date range">
           {ranges.map((r) => (
             <button
@@ -53,7 +139,7 @@ const Analytics: React.FC = () => {
         </div>
       </div>
 
-      {/* Chart placeholders */}
+      {/* Summary charts (kept from Step 2, will be upgraded in later steps) */}
       <div className="analytics-charts">
         <div className="card card--chart">
           <div className="card__header">
@@ -65,89 +151,66 @@ const Analytics: React.FC = () => {
           </div>
           <div className="chart-placeholder chart-placeholder--line">
             <svg viewBox="0 0 400 120" className="line-chart-svg" aria-hidden="true">
-              <polyline
-                points="0,100 40,80 80,90 120,50 160,60 200,30 240,45 280,20 320,35 360,10 400,25"
-                fill="none"
-                stroke="var(--color-primary)"
-                strokeWidth="2"
-              />
-              <polyline
-                points="0,100 40,80 80,90 120,50 160,60 200,30 240,45 280,20 320,35 360,10 400,25 400,120 0,120"
-                fill="url(#areaGrad)"
-                stroke="none"
-              />
               <defs>
                 <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.25" />
+                  <stop offset="0%"   stopColor="var(--color-primary)" stopOpacity="0.25" />
                   <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0" />
                 </linearGradient>
               </defs>
+              <polyline points="0,100 40,80 80,90 120,50 160,60 200,30 240,45 280,20 320,35 360,10 400,25"
+                fill="none" stroke="var(--color-primary)" strokeWidth="2" />
+              <polyline points="0,100 40,80 80,90 120,50 160,60 200,30 240,45 280,20 320,35 360,10 400,25 400,120 0,120"
+                fill="url(#areaGrad)" stroke="none" />
             </svg>
           </div>
         </div>
 
         <div className="card card--chart">
           <div className="card__header">
-            <h2 className="card__title">Unique Visitors</h2>
+            <h2 className="card__title">Revenue Breakdown</h2>
             <span className="stat-inline">
-              <strong>38,201</strong>
+              <strong>$38,920</strong>
               <span className="stat-inline__change stat-inline__change--up">↑ 5.7%</span>
             </span>
           </div>
           <div className="chart-placeholder chart-placeholder--line">
             <svg viewBox="0 0 400 120" className="line-chart-svg" aria-hidden="true">
-              <polyline
-                points="0,90 40,85 80,70 120,75 160,55 200,60 240,40 280,50 320,30 360,35 400,20"
-                fill="none"
-                stroke="var(--color-success)"
-                strokeWidth="2"
-              />
-              <polyline
-                points="0,90 40,85 80,70 120,75 160,55 200,60 240,40 280,50 320,30 360,35 400,20 400,120 0,120"
-                fill="url(#areaGrad2)"
-                stroke="none"
-              />
               <defs>
                 <linearGradient id="areaGrad2" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-success)" stopOpacity="0.2" />
+                  <stop offset="0%"   stopColor="var(--color-success)" stopOpacity="0.2" />
                   <stop offset="100%" stopColor="var(--color-success)" stopOpacity="0" />
                 </linearGradient>
               </defs>
+              <polyline points="0,90 40,85 80,70 120,75 160,55 200,60 240,40 280,50 320,30 360,35 400,20"
+                fill="none" stroke="var(--color-success)" strokeWidth="2" />
+              <polyline points="0,90 40,85 80,70 120,75 160,55 200,60 240,40 280,50 320,30 360,35 400,20 400,120 0,120"
+                fill="url(#areaGrad2)" stroke="none" />
             </svg>
           </div>
         </div>
       </div>
 
-      {/* Metrics table */}
-      <div className="card">
-        <div className="card__header">
-          <h2 className="card__title">Top Pages</h2>
-          <span className="text-muted text-sm">Last {activeRange}</span>
+      {/* ── Data Grid ─────────────────────────────────────────────────────── */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card__header" style={{ padding: 'var(--space-5) var(--space-6)' }}>
+          <h2 className="card__title">User Sessions</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <span className="badge badge--blue">Virtual Scroll</span>
+            <span className="badge badge--green">Sortable</span>
+            <span className="badge badge--purple">Editable</span>
+            <span className="text-muted text-sm">Last {activeRange}</span>
+          </div>
         </div>
-        <div className="table-wrapper">
-          <table className="data-table" aria-label="Top pages metrics">
-            <thead>
-              <tr>
-                <th>Page</th>
-                <th>Views</th>
-                <th>Unique Visitors</th>
-                <th>Bounce Rate</th>
-                <th>Avg. Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {METRICS.map((row) => (
-                <tr key={row.page}>
-                  <td className="data-table__page-cell">{row.page}</td>
-                  <td>{row.views}</td>
-                  <td>{row.uniqueVisitors}</td>
-                  <td>{row.bounceRate}</td>
-                  <td>{row.avgTime}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+
+        <DataGrid<SessionRecord>
+          data={SESSION_DATA}
+          columns={COLUMNS}
+          rowHeight={44}
+          gridHeight={528}
+          overscan={4}
+          onRowUpdate={handleRowUpdate}
+          emptyMessage="No sessions match your search. Try clearing the filters."
+        />
       </div>
     </div>
   );
