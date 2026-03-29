@@ -40,6 +40,24 @@ const { ModuleFederationPlugin } = webpack.container;
 
 const isDev = process.env.NODE_ENV !== 'production';
 
+/**
+ * Remote origin URLs — configurable via environment variables.
+ *
+ * WHY environment variables (not hardcoded):
+ *   The same webpack config runs in three environments:
+ *     - Local dev:    DASHBOARD_REMOTE_URL not set → defaults to localhost:3001
+ *     - Staging CI:   DASHBOARD_REMOTE_URL=https://staging-dashboard.cdn.example.com
+ *     - Production:   DASHBOARD_REMOTE_URL=https://dashboard.cdn.example.com
+ *
+ *   One config file, zero conditional logic, zero manual edits per environment.
+ *   The CI pipeline sets the env var before running `webpack --mode production`.
+ *
+ * These values are injected into the browser bundle by DefinePlugin (below),
+ * making them available as constants in src/config/remoteStatus.ts.
+ */
+const DASHBOARD_REMOTE_URL = process.env['DASHBOARD_REMOTE_URL'] ?? 'http://localhost:3001';
+const ANALYTICS_REMOTE_URL = process.env['ANALYTICS_REMOTE_URL'] ?? 'http://localhost:3002';
+
 const config: Configuration & { devServer?: DevServerConfiguration } = {
   entry: './src/index.ts',
 
@@ -104,8 +122,8 @@ const config: Configuration & { devServer?: DevServerConfiguration } = {
        * For production, use CDN URLs (e.g. https://dashboard.cdn.example.com).
        */
       remotes: {
-        dashboardApp: 'dashboardApp@http://localhost:3001/remoteEntry.js',
-        analyticsApp: 'analyticsApp@http://localhost:3002/remoteEntry.js',
+        dashboardApp: `dashboardApp@${DASHBOARD_REMOTE_URL}/remoteEntry.js`,
+        analyticsApp: `analyticsApp@${ANALYTICS_REMOTE_URL}/remoteEntry.js`,
       },
 
       /**
@@ -147,6 +165,23 @@ const config: Configuration & { devServer?: DevServerConfiguration } = {
           eager:           true,
         },
       },
+    }),
+
+    /**
+     * DefinePlugin — injects build-time constants into the browser bundle.
+     *
+     * These become compile-time string literals (not runtime variables).
+     * remoteStatus.ts uses `declare const DASHBOARD_REMOTE_URL: string`
+     * to tell TypeScript "this will exist at runtime, Webpack puts it there."
+     *
+     * JSON.stringify wraps the value in quotes so the result in the bundle is:
+     *   var DASHBOARD_REMOTE_URL = "http://localhost:3001"   ← string literal
+     * Without JSON.stringify it would be:
+     *   var DASHBOARD_REMOTE_URL = http://localhost:3001     ← syntax error
+     */
+    new webpack.DefinePlugin({
+      DASHBOARD_REMOTE_URL: JSON.stringify(DASHBOARD_REMOTE_URL),
+      ANALYTICS_REMOTE_URL: JSON.stringify(ANALYTICS_REMOTE_URL),
     }),
 
     new HtmlWebpackPlugin({

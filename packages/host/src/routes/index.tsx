@@ -42,6 +42,7 @@ import { lazy }                          from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell }                      from '@/components/layout';
 import NotFound                          from '@/pages/NotFound';
+import { setRemoteSource }               from '@/config/remoteStatus';
 
 // ── Remote-first page chunks ───────────────────────────────────────────────
 
@@ -49,15 +50,20 @@ import NotFound                          from '@/pages/NotFound';
  * Try the MF remote first. If the remote dev server isn't running,
  * the dynamic import rejects and .catch() loads the local fallback.
  * Users never see an error — they just get the locally-bundled version.
+ *
+ * setRemoteSource records which path was taken so RemoteIndicator can
+ * display the correct badge (● remote  vs  ↩ fallback).
  */
 const Dashboard = lazy(() =>
   import(/* webpackChunkName: "remote-dashboard" */ 'dashboardApp/Page')
-    .catch(() => import(/* webpackChunkName: "page-dashboard" */ '@/pages/Dashboard'))
+    .then(m  => { setRemoteSource('dashboard', 'remote');   return m; })
+    .catch(() => { setRemoteSource('dashboard', 'fallback'); return import(/* webpackChunkName: "page-dashboard" */ '@/pages/Dashboard'); })
 );
 
 const Analytics = lazy(() =>
   import(/* webpackChunkName: "remote-analytics" */ 'analyticsApp/Page')
-    .catch(() => import(/* webpackChunkName: "page-analytics" */ '@/pages/Analytics'))
+    .then(m  => { setRemoteSource('analytics', 'remote');   return m; })
+    .catch(() => { setRemoteSource('analytics', 'fallback'); return import(/* webpackChunkName: "page-analytics" */ '@/pages/Analytics'); })
 );
 
 /** Workflow stays local until extracted to its own remote in a later step */

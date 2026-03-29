@@ -8,6 +8,7 @@ import { NavLink } from 'react-router-dom';
 import { useAppSelector } from '@/store/hooks';
 import { selectUser } from '@/store/slices';
 import { DashboardIcon, AnalyticsIcon, WorkflowIcon } from './icons';
+import RemoteIndicator from './RemoteIndicator';
 
 interface NavItem {
   to: string;
@@ -63,6 +64,9 @@ const Sidebar: React.FC = () => {
             </div>
           </div>
         )}
+        {/* Dev-only: shows which pages loaded from MF remotes vs local fallback.
+            RemoteIndicator exports () => null in production — zero overhead. */}
+        <RemoteIndicator />
       </div>
     </aside>
   );
