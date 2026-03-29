@@ -1,0 +1,29 @@
+{
+  "name": "@mf-dashboard/analytics",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev":        "webpack serve --config webpack.config.ts --mode development",
+    "build":      "webpack --config webpack.config.ts --mode production",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react":     "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react":            "^18.3.1",
+    "@types/react-dom":        "^18.3.1",
+    "@types/node":             "^20.0.0",
+    "css-loader":              "^7.1.2",
+    "html-webpack-plugin":     "^5.6.3",
+    "mini-css-extract-plugin": "^2.9.1",
+    "style-loader":            "^4.0.0",
+    "ts-loader":               "^9.5.1",
+    "ts-node":                 "^10.9.2",
+    "typescript":              "^5.4.5",
+    "webpack":                 "^5.91.0",
+    "webpack-cli":             "^5.1.4",
+    "webpack-dev-server":      "^5.0.4"
+  }
+}

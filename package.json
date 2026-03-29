@@ -6,14 +6,17 @@
     "packages/*"
   ],
   "scripts": {
-    "host": "npm run dev --workspace=packages/host",
-    "dev": "npm run host",
-    "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "dev":           "npm run dev:host",
+    "dev:host":      "npm run dev --workspace=packages/host",
+    "dev:dashboard": "npm run dev --workspace=packages/dashboard",
+    "dev:analytics": "npm run dev --workspace=packages/analytics",
+    "build":         "npm run build --workspaces --if-present",
+    "type-check":    "npm run type-check --workspaces --if-present",
+    "test":          "npm run test --workspaces --if-present",
+    "lint":          "npm run lint --workspaces --if-present"
   },
   "engines": {
     "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "npm":  ">=9.0.0"
   }
 }

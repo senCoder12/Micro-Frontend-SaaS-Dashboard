@@ -16,13 +16,15 @@
  *   Context and they'd never see each other's state.
  */
 import { configureStore } from '@reduxjs/toolkit';
-import userReducer from './slices/userSlice';
+import userReducer      from './slices/userSlice';
 import dashboardReducer from './slices/dashboardSlice';
+import websocketReducer from './slices/websocketSlice';
 
 export const store = configureStore({
   reducer: {
-    user: userReducer,
+    user:      userReducer,
     dashboard: dashboardReducer,
+    websocket: websocketReducer,
   },
   // devTools: RTK enables this automatically in development.
   // You can install the Redux DevTools browser extension to inspect state.
