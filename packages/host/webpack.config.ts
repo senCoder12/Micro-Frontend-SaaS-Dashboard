@@ -129,39 +129,64 @@ const config: Configuration & { devServer?: DevServerConfiguration } = {
       /**
        * Shared — libraries loaded ONCE and reused by all remotes.
        *
-       * `eager: true` on host side ONLY:
-       *   Bundles these into the host's initial chunk so they are available
-       *   synchronously before any remote tries to consume them.
-       *   If you set eager on the remote too, you can get duplicate bundles.
+       * ── eager: true (HOST ONLY) ────────────────────────────────────────
+       * Bundles these into the host's initial chunk so they are available
+       * synchronously before any remote tries to consume them.
+       * Do NOT set eager on remotes — they sit behind the async boundary
+       * (index.ts → import('./bootstrap')) so MF can negotiate the shared
+       * scope before any module code runs.
        *
-       * `singleton: true`:
-       *   If version ranges are incompatible, MF uses the higher version
-       *   rather than loading two copies. React MUST be singleton.
+       * ── singleton: true ───────────────────────────────────────────────
+       * Tells MF: load exactly one copy, shared by everyone.
+       * React MUST be a singleton — React uses module-level globals for the
+       * current fiber, current dispatcher, and hook state. Two copies = two
+       * independent hook states = "Invalid hook call" errors at runtime.
+       * Same applies to react-redux (Context) and react-router-dom (Router).
+       *
+       * ── strictVersion: true ───────────────────────────────────────────
+       * Without this: version mismatch → MF silently uses the higher version
+       * and logs a console warning you might never see in production.
+       * With this: version mismatch → MF throws immediately at module init.
+       * For React / Redux, silent mismatch can cause subtle corruption.
+       * Better to fail loudly in dev than break silently in production.
+       *
+       * ── requiredVersion: match package.json exactly ───────────────────
+       * These ranges come directly from each package's package.json.
+       * MF reads the installed package's `version` field at runtime and
+       * checks it against requiredVersion. If the ranges drift apart
+       * (e.g. host needs ^18.3 but remote needs ^18.0) MF picks one copy
+       * and the other side may get an API it didn't expect.
+       * Keeping ranges in sync across all packages prevents this.
        */
       shared: {
         react: {
           singleton:       true,
-          requiredVersion: '^18.0.0',
+          strictVersion:   true,
+          requiredVersion: '^18.3.1',
           eager:           true,
         },
         'react-dom': {
           singleton:       true,
-          requiredVersion: '^18.0.0',
+          strictVersion:   true,
+          requiredVersion: '^18.3.1',
           eager:           true,
         },
         'react-redux': {
           singleton:       true,
-          requiredVersion: '^9.0.0',
+          strictVersion:   true,
+          requiredVersion: '^9.1.2',
           eager:           true,
         },
         '@reduxjs/toolkit': {
           singleton:       true,
-          requiredVersion: '^2.0.0',
+          strictVersion:   true,
+          requiredVersion: '^2.3.0',
           eager:           true,
         },
         'react-router-dom': {
           singleton:       true,
-          requiredVersion: '^7.0.0',
+          strictVersion:   true,
+          requiredVersion: '^7.1.5',
           eager:           true,
         },
       },

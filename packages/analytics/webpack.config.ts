@@ -69,14 +69,35 @@ const config: Configuration & { devServer?: DevServerConfiguration } = {
         './Page': './src/pages/Analytics/index',
       },
 
+      /**
+       * Analytics shares ONLY react + react-dom — nothing else.
+       *
+       * ── Why not react-redux or @reduxjs/toolkit ───────────────────────
+       * Analytics manages its own state locally (1 000 mock sessions in
+       * component state). It has no Redux dependency at all.
+       * Only list packages you actually import. Listing react-redux here
+       * would add a phantom peer dependency: future maintainers would
+       * wonder which slice analytics reads from, only to find: none.
+       *
+       * ── Why not react-router-dom ──────────────────────────────────────
+       * Analytics doesn't declare react-router-dom in its package.json.
+       * It never calls useNavigate / useParams. No listing needed.
+       * If it later needs routing, add it to package.json first, then here.
+       *
+       * ── strictVersion + singleton ─────────────────────────────────────
+       * Same reasoning as dashboard: React must be one copy.
+       * Mismatch → throw immediately, not silently break hooks.
+       */
       shared: {
         react: {
           singleton:       true,
-          requiredVersion: '^18.0.0',
+          strictVersion:   true,
+          requiredVersion: '^18.3.1',
         },
         'react-dom': {
           singleton:       true,
-          requiredVersion: '^18.0.0',
+          strictVersion:   true,
+          requiredVersion: '^18.3.1',
         },
       },
     }),

@@ -92,33 +92,48 @@ const config: Configuration & { devServer?: DevServerConfiguration } = {
       },
 
       /**
-       * Shared dependencies — these are NOT included in this remote's bundle.
-       * The host loads them first (eager:true), then this remote reuses them.
+       * Shared dependencies — NOT bundled into this remote's chunks.
+       * When the host loads this remote, MF checks its shared scope.
+       * If the host already loaded react@18.3.1, this remote reuses it.
+       * No second download, no second copy in memory.
        *
-       * requiredVersion enforces semver compatibility at runtime:
-       * if the host loads react@18.2.0 but this remote requires ^18.3.0,
-       * MF will warn in the console (not fail) and load the higher version.
+       * ── No eager: true here ───────────────────────────────────────────
+       * The host sets eager. Remotes must NOT — they sit behind an async
+       * boundary (index.ts → import('./bootstrap')). The async gap is what
+       * gives MF time to negotiate the shared scope before any module code
+       * runs. If a remote sets eager too, it bundles a second copy into its
+       * own initial chunk, defeating the whole point of sharing.
+       *
+       * ── strictVersion: true ───────────────────────────────────────────
+       * Same setting as host — if the negotiated version falls outside this
+       * range, throw immediately rather than running with a mismatched copy.
+       * Matches the version declared in this package's package.json exactly.
        */
       shared: {
         react: {
           singleton:       true,
-          requiredVersion: '^18.0.0',
+          strictVersion:   true,
+          requiredVersion: '^18.3.1',
         },
         'react-dom': {
           singleton:       true,
-          requiredVersion: '^18.0.0',
+          strictVersion:   true,
+          requiredVersion: '^18.3.1',
         },
         'react-redux': {
           singleton:       true,
-          requiredVersion: '^9.0.0',
+          strictVersion:   true,
+          requiredVersion: '^9.1.2',
         },
         '@reduxjs/toolkit': {
           singleton:       true,
-          requiredVersion: '^2.0.0',
+          strictVersion:   true,
+          requiredVersion: '^2.3.0',
         },
         'react-router-dom': {
           singleton:       true,
-          requiredVersion: '^7.0.0',
+          strictVersion:   true,
+          requiredVersion: '^7.1.5',
         },
       },
     }),
