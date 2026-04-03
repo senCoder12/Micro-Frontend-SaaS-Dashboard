@@ -16,12 +16,14 @@
  *   Context and they'd never see each other's state.
  */
 import { configureStore } from '@reduxjs/toolkit';
+import authReducer      from './slices/authSlice';
 import userReducer      from './slices/userSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import websocketReducer from './slices/websocketSlice';
 
 export const store = configureStore({
   reducer: {
+    auth:      authReducer,
     user:      userReducer,
     dashboard: dashboardReducer,
     websocket: websocketReducer,

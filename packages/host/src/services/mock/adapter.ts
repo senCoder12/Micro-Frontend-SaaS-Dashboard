@@ -38,6 +38,53 @@ import {
   MOCK_USER_PREFERENCES,
 } from './data/user.mock';
 import type { ApiResponse } from '@/types';
+import type { UserRole } from '@/types';
+
+// ── Mock user roster ───────────────────────────────────────────────────────
+//
+// Three roles, each with distinct capabilities:
+//   admin   — full access (all pages, destructive actions)
+//   manager — analytics read access, no admin panel
+//   viewer  — dashboard + workflow only (no analytics)
+//
+// All share the same password for demo convenience.
+// In production, passwords are never stored or returned from the API.
+
+interface MockUser {
+  id:             string;
+  email:          string;
+  password:       string;  // only in mock — never send over the wire
+  name:           string;
+  role:           UserRole;
+  avatarInitials: string;
+}
+
+const MOCK_USERS: MockUser[] = [
+  {
+    id:             'usr_001',
+    email:          'admin@acme.com',
+    password:       'password',
+    name:           'John Doe',
+    role:           'admin',
+    avatarInitials: 'JD',
+  },
+  {
+    id:             'usr_002',
+    email:          'manager@acme.com',
+    password:       'password',
+    name:           'Sarah Miller',
+    role:           'manager',
+    avatarInitials: 'SM',
+  },
+  {
+    id:             'usr_003',
+    email:          'viewer@acme.com',
+    password:       'password',
+    name:           'Alex Reed',
+    role:           'viewer',
+    avatarInitials: 'AR',
+  },
+];
 
 /** Simulated network round-trip in milliseconds */
 const MOCK_DELAY_MS = 700;
@@ -60,6 +107,42 @@ export function setupMockAdapter(axiosInstance: AxiosInstance): void {
   const mock = new MockAdapter(axiosInstance, {
     delayResponse: MOCK_DELAY_MS,
     onNoMatch:     'throwException',
+  });
+
+  // ── Auth ─────────────────────────────────────────────────────────────────
+
+  /**
+   * POST /auth/login
+   *
+   * Validates email + password against MOCK_USERS.
+   * Returns a mock token and the user's profile on success.
+   * Returns 401 with an error message on failure.
+   *
+   * In production:
+   *   - Passwords are hashed server-side (bcrypt / argon2)
+   *   - The token is a signed JWT (HS256 or RS256)
+   *   - A refresh token is set as an httpOnly cookie
+   *   - Rate limiting prevents brute-force attacks
+   */
+  mock.onPost(ENDPOINTS.auth.login).reply((config) => {
+    const { email, password } = JSON.parse(config.data as string) as {
+      email: string;
+      password: string;
+    };
+
+    const found = MOCK_USERS.find(
+      u => u.email === email && u.password === password,
+    );
+
+    if (!found) {
+      return [401, { status: 'error', message: 'Invalid email or password.' }];
+    }
+
+    // Strip password before sending to client
+    const { password: _pw, ...profile } = found;
+    const token = `mock_jwt_${profile.id}_${Date.now()}`;
+
+    return [200, ok({ token, user: profile })];
   });
 
   // ── Dashboard ────────────────────────────────────────────────────────────

@@ -1,59 +1,45 @@
 /**
  * Route Definitions — Single Source of Truth.
  *
+ * ── Route tree shape ──────────────────────────────────────────────────────
+ *
+ *  /login                  ← public, unauthenticated only
+ *  /                       ← ProtectedRoute (redirects to /login if unauth)
+ *    AppShell              ← layout (Header + Sidebar)
+ *      /dashboard          ← all authenticated roles
+ *      /analytics          ← RequireRole(['admin','manager']) → /forbidden for viewer
+ *      /workflow           ← all authenticated roles
+ *      /forbidden          ← 403 page (inside AppShell so nav is still visible)
+ *  /*                      ← 404 NotFound
+ *
  * ── Module Federation remote imports ──────────────────────────────────────
  *
- * BEFORE (Steps 1–8): static local imports
- *   const Dashboard = lazy(() => import('@/pages/Dashboard'));
- *   // Lives in THIS bundle — all page code shipped to every user
+ * Remote-first with local fallback:
+ *   import('dashboardApp/Page')           ← MF remote (preferred)
+ *     .catch(() => import('@/pages/Dashboard'))  ← local fallback
  *
- * AFTER (Step 9): remote-first with local fallback
- *   const Dashboard = lazy(() =>
- *     import('dashboardApp/Page')           // ← MF remote (preferred)
- *       .catch(() => import('@/pages/Dashboard'))  // ← local fallback
- *   );
+ * setRemoteSource records the resolution path so RemoteIndicator shows
+ * the correct badge (● remote  vs  ↩ fallback) in the Sidebar dev panel.
  *
- * HOW THE REMOTE IMPORT WORKS:
- *   1. Webpack sees `import('dashboardApp/Page')`
- *   2. At runtime the MF runtime checks: is 'dashboardApp' registered?
- *   3. It fetches http://localhost:3001/remoteEntry.js (the manifest)
- *   4. It finds the chunk hash for './Page' in the manifest
- *   5. It fetches that chunk and executes the Dashboard component
- *   6. React.lazy resolves → Suspense unmounts PageLoader → Dashboard renders
+ * ── RBAC at the route level ───────────────────────────────────────────────
  *
- * WHY .catch() fallback:
- *   If the dashboard dev server isn't running (common when only developing
- *   the host shell), the remote fetch fails. The catch silently falls back
- *   to the local copy bundled with the host. This means:
- *   - Running ONLY the host still works (uses local pages)
- *   - Running host + remotes uses the remote pages
- *   - A remote crashing in production degrades gracefully
+ * RequireRole is a layout route that renders <Outlet /> if the user's role
+ * is allowed, or <Navigate to="/forbidden" /> if not.
  *
- * WORKFLOW FOR TEAMS:
- *   Host team   → npm run dev:host                (port 3000 only)
- *   Dashboard   → npm run dev:dashboard            (port 3001 only)
- *   Full stack  → npm run dev (all three in parallel)
- *
- * WHY Workflow stays local:
- *   We haven't created a packages/workflow remote yet (Step 10+).
- *   It stays as a local lazy import until extracted.
+ * Defense in depth: the Sidebar also hides nav items the user can't access,
+ * but RequireRole catches direct URL access and programmatic navigation.
  */
 import { lazy }                          from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppShell }                      from '@/components/layout';
+import { ProtectedRoute, RequireRole }   from '@/components/auth';
 import NotFound                          from '@/pages/NotFound';
+import Login                             from '@/pages/Login';
+import Forbidden                         from '@/pages/Forbidden';
 import { setRemoteSource }               from '@/config/remoteStatus';
 
 // ── Remote-first page chunks ───────────────────────────────────────────────
 
-/**
- * Try the MF remote first. If the remote dev server isn't running,
- * the dynamic import rejects and .catch() loads the local fallback.
- * Users never see an error — they just get the locally-bundled version.
- *
- * setRemoteSource records which path was taken so RemoteIndicator can
- * display the correct badge (● remote  vs  ↩ fallback).
- */
 const Dashboard = lazy(() =>
   import(/* webpackChunkName: "remote-dashboard" */ 'dashboardApp/Page')
     .then(m  => { setRemoteSource('dashboard', 'remote');   return m; })
@@ -66,7 +52,6 @@ const Analytics = lazy(() =>
     .catch(() => { setRemoteSource('analytics', 'fallback'); return import(/* webpackChunkName: "page-analytics" */ '@/pages/Analytics'); })
 );
 
-/** Workflow stays local until extracted to its own remote in a later step */
 const Workflow = lazy(
   () => import(/* webpackChunkName: "page-workflow" */ '@/pages/Workflow')
 );
@@ -74,28 +59,60 @@ const Workflow = lazy(
 // ── Router ─────────────────────────────────────────────────────────────────
 
 export const router = createBrowserRouter([
+  // ── Public route: login ────────────────────────────────────────────────
   {
-    path:    '/',
-    element: <AppShell />,
+    path:    '/login',
+    element: <Login />,
+  },
+
+  // ── Protected routes: require authentication ───────────────────────────
+  {
+    element: <ProtectedRoute />,
     children: [
       {
-        index:   true,
-        element: <Navigate to="/dashboard" replace />,
-      },
-      {
-        path:    'dashboard',
-        element: <Dashboard />,
-      },
-      {
-        path:    'analytics',
-        element: <Analytics />,
-      },
-      {
-        path:    'workflow',
-        element: <Workflow />,
+        path:    '/',
+        element: <AppShell />,
+        children: [
+          // Default redirect
+          {
+            index:   true,
+            element: <Navigate to="/dashboard" replace />,
+          },
+
+          // All authenticated roles
+          {
+            path:    'dashboard',
+            element: <Dashboard />,
+          },
+
+          // Admin + manager only — viewer redirected to /forbidden
+          {
+            element: <RequireRole allowedRoles={['admin', 'manager']} />,
+            children: [
+              {
+                path:    'analytics',
+                element: <Analytics />,
+              },
+            ],
+          },
+
+          // All authenticated roles
+          {
+            path:    'workflow',
+            element: <Workflow />,
+          },
+
+          // 403 page — inside AppShell so sidebar/header remain visible
+          {
+            path:    'forbidden',
+            element: <Forbidden />,
+          },
+        ],
       },
     ],
   },
+
+  // ── Catch-all 404 ─────────────────────────────────────────────────────
   {
     path:    '*',
     element: <NotFound />,

@@ -4,6 +4,7 @@
  *
  * e.g., import { selectUser, updateStats } from '@/store/slices';
  */
+export * from './authSlice';
 export * from './userSlice';
 export * from './dashboardSlice';
 export * from './websocketSlice';

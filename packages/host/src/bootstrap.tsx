@@ -4,7 +4,6 @@ import { Provider } from 'react-redux';
 import App from './App';
 import { store } from './store';
 import { fetchDashboardData } from './store/slices/dashboardSlice';
-import { fetchCurrentUser } from './store/slices/userSlice';
 import { apiClient } from './services';
 import './styles/global.css';
 
@@ -40,10 +39,15 @@ if (!rootElement) {
  * 'loading' state rather than 'idle', showing the loading indicator
  * immediately without an extra render cycle.
  *
- * Step 12: fetchCurrentUser will verify the JWT here first;
- * only if valid do we dispatch fetchDashboardData.
+ * Step 12: fetchCurrentUser is no longer dispatched here.
+ * Session restoration happens synchronously in userSlice's initialState
+ * (reads sessionStorage at module load time). No async check needed.
+ *
+ * fetchDashboardData is prefetched here so the Dashboard page loads into
+ * a 'loading' state rather than 'idle' (avoids an extra render cycle).
+ * In a real app, this would be dispatched inside the Dashboard component
+ * on mount, or conditionally after confirming the user is authenticated.
  */
-store.dispatch(fetchCurrentUser());
 store.dispatch(fetchDashboardData());
 
 createRoot(rootElement).render(

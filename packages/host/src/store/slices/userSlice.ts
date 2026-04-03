@@ -37,22 +37,37 @@ export interface UserState {
   profileStatus:   'idle' | 'loading' | 'succeeded' | 'failed';
 }
 
+// ── Session restoration (synchronous) ─────────────────────────────────────
+//
+// authSlice stores the user object in sessionStorage on login.
+// userSlice reads it back here at module load time — before React renders.
+// This eliminates the "flash of login page" for returning users.
+//
+// The token is verified by authSlice (same timing, same mechanism).
+// If the token is missing but the user object is present (or vice versa),
+// we treat the session as invalid and start unauthenticated.
+
+const _restoredProfile = (() => {
+  try {
+    const token    = sessionStorage.getItem('auth_token');
+    const userJson = sessionStorage.getItem('auth_user');
+    if (!token || !userJson) return null;
+    return JSON.parse(userJson) as UserProfile;
+  } catch {
+    return null;
+  }
+})();
+
 // ── Initial state ──────────────────────────────────────────────────────────
 
 const initialState: UserState = {
-  profile: {
-    id:             'usr_001',
-    name:           'John Doe',
-    email:          'john@acme.com',
-    role:           'admin',
-    avatarInitials: 'JD',
-  },
+  profile:         _restoredProfile,
   preferences: {
     theme:         'dark',
     notifications: true,
     compactMode:   false,
   },
-  isAuthenticated: true, // replaced by real JWT check in Step 12
+  isAuthenticated: _restoredProfile !== null,
   profileStatus:   'idle',
 };
 
@@ -152,6 +167,25 @@ const userSlice = createSlice({
         state.preferences = action.payload;
       });
       // rejected: silently ignore — local state already updated via updatePreferences
+
+    // ── auth/logout (cross-slice listener) ──────────────────────────────────
+    //
+    // WHY match by type string instead of importing logout from authSlice:
+    //   Importing would create a circular reference:
+    //   userSlice → authSlice → (RootState type) → store/index → userSlice
+    //   TypeScript handles `import type` cycles, but runtime circular requires
+    //   can produce undefined values at execution time.
+    //
+    //   Matching the action type string keeps slices fully decoupled.
+    //   authSlice dispatches 'auth/logout'; both slices react to it.
+    builder.addMatcher(
+      (action): action is { type: 'auth/logout' } => action.type === 'auth/logout',
+      (state) => {
+        state.profile         = null;
+        state.isAuthenticated = false;
+        state.profileStatus   = 'idle';
+      },
+    );
   },
 });
 

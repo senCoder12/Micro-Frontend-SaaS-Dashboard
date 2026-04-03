@@ -10,6 +10,9 @@
  * instead of `string`, which TypeScript can use for exhaustiveness checks.
  */
 export const ENDPOINTS = {
+  auth: {
+    login: '/auth/login',
+  },
   dashboard: {
     stats:    '/dashboard/stats',
     changes:  '/dashboard/stat-changes',

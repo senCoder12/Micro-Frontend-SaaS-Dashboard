@@ -22,6 +22,7 @@ import {
   selectWsUnreadCount,
   selectWsRetryCount,
   clearUnreadCount,
+  selectUser,
 }                                from '@/store/slices';
 import { BellIcon, SearchIcon, ChevronRightIcon } from './icons';
 
@@ -86,6 +87,7 @@ const Header: React.FC = () => {
   const wsStatus     = useAppSelector(selectWsStatus);
   const unreadCount  = useAppSelector(selectWsUnreadCount);
   const retryCount   = useAppSelector(selectWsRetryCount);
+  const user         = useAppSelector(selectUser);
 
   const handleBellClick = useCallback(() => {
     dispatch(clearUnreadCount());
@@ -133,13 +135,14 @@ const Header: React.FC = () => {
           )}
         </button>
 
-        {/* Avatar — replaced by real user data in Step 12 */}
+        {/* Avatar — real user initials + role badge from Redux */}
         <button
           className="header__avatar"
-          aria-label="User menu"
+          aria-label={user !== null ? `User menu — ${user.name} (${user.role})` : 'User menu'}
+          title={user?.email}
           type="button"
         >
-          JD
+          {user?.avatarInitials ?? '?'}
         </button>
       </div>
     </header>
