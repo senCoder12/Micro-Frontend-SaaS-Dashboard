@@ -13,7 +13,7 @@ import React from 'react';
 import DashboardPage from './pages/Dashboard';
 
 const App: React.FC = () => (
-  <div style={{
+<div style={{
     minHeight:  '100vh',
     background: 'var(--color-bg, #0f1117)',
     color:      'var(--color-text, #e2e8f0)',
